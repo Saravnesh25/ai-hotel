@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # AI Hotel Receptionist Website
 
 A beautiful hotel receptionist chatbot website built with Next.js, Tailwind CSS, and Azure OpenAI.
@@ -27,3 +28,6 @@ A beautiful hotel receptionist chatbot website built with Next.js, Tailwind CSS,
 ## Customization
 - Update the chatbot avatar in `/public/chatbot-avatar.png` (optional)
 - Edit the Q&A prompt in `/pages/api/chat.js` for your hotel
+=======
+# ai-hotel
+>>>>>>> 43d07f0ee28d2eea639fe6c9b61f35c2b5164c60
