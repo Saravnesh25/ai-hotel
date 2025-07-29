@@ -4,6 +4,7 @@ A beautiful hotel receptionist chatbot website built with Next.js, Tailwind CSS,
 
 ## Setup
 
+# Frontend
 1. Install dependencies:
    ```bash
    npm install
@@ -27,4 +28,23 @@ A beautiful hotel receptionist chatbot website built with Next.js, Tailwind CSS,
 ## Customization
 - Update the chatbot avatar in `/public/chatbot-avatar.png` (optional)
 - Edit the Q&A prompt in `/pages/api/chat.js` for your hotel
+
+# Backend
+1. Navigate to `backend/` and create a virtual environment:
+   ```
+   cd backend
+   python -m venv venv
+   ```
+2. Activate the venv:
+   ```
+   venv\Scripts\activate
+   ```
+4. Install requirements:
+   ```
+   pip install -r requirements.txt
+   ```
+6. Run the backend:
+   ```
+   uvicorn main:app --reload --port 8000
+   ```
 # ai-hotel
