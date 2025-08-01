@@ -1,22 +1,42 @@
 import { useState, useRef, useEffect } from 'react';
+import ChatBotBookingForm from './ChatBotBookingForm';
 
-export default function ChatBot({ isOpen, onToggle }) {
+const demoRooms = [
+  { id: 1, name: 'Deluxe Room', price: 120, available: 3 },
+  { id: 2, name: 'Suite', price: 220, available: 2 },
+  { id: 3, name: 'Family Room', price: 180, available: 1 },
+];
+
+export default function ChatBot({ isOpen, onToggle, rooms = demoRooms }) {
   const [messages, setMessages] = useState([
     { role: 'assistant', content: 'Hello! Welcome to Azure Grand Hotel. How can I help you?' },
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showBookingForm, setShowBookingForm] = useState(false);
   const chatEndRef = useRef(null);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isOpen]);
+  }, [messages, isOpen, showBookingForm]);
+
+  const bookingKeywords = /book|reserve|room|booking|stay|reservation/i;
 
   const sendMessage = async (e) => {
     e.preventDefault();
     if (!input.trim()) return;
     const userMsg = { role: 'user', content: input };
     setMessages((msgs) => [...msgs, userMsg]);
+    // Booking intent detection
+    if (bookingKeywords.test(input)) {
+      setShowBookingForm(true);
+      setMessages((msgs) => [
+        ...msgs,
+        { role: 'assistant', content: <span>Sure! Please fill in your booking details below:</span> }
+      ]);
+      setInput('');
+      return;
+    }
     setInput('');
     setLoading(true);
     try {
@@ -31,6 +51,19 @@ export default function ChatBot({ isOpen, onToggle }) {
       setMessages((msgs) => [...msgs, { role: 'assistant', content: 'Sorry, something went wrong.' }]);
     }
     setLoading(false);
+  };
+
+  const handleBookingSubmit = (form) => {
+    setShowBookingForm(false);
+    setMessages((msgs) => [
+      ...msgs,
+      { role: 'assistant', content: (
+        <span>
+          Booking confirmed for <b>{form.name}</b> in <b>{rooms.find(r => r.id == form.roomId)?.name}</b>.<br />
+          We look forward to your stay!
+        </span>
+      ) }
+    ]);
   };
 
   return (
@@ -57,6 +90,13 @@ export default function ChatBot({ isOpen, onToggle }) {
                 </div>
               </div>
             ))}
+            {showBookingForm && (
+              <div className="mb-2 flex justify-start">
+                <div className="px-3 py-2 rounded-2xl max-w-xs text-sm shadow bg-white text-gray-800 border border-blue-200">
+                  <ChatBotBookingForm rooms={rooms} onSubmit={handleBookingSubmit} />
+                </div>
+              </div>
+            )}
             <div ref={chatEndRef} />
           </div>
           <form onSubmit={sendMessage} className="flex gap-2">
@@ -66,13 +106,13 @@ export default function ChatBot({ isOpen, onToggle }) {
               placeholder="Ask me anything..."
               value={input}
               onChange={e => setInput(e.target.value)}
-              disabled={loading}
+              disabled={loading || showBookingForm}
               autoFocus
             />
             <button
               type="submit"
               className="bg-blue-600 text-white px-4 py-2 rounded-2xl font-semibold hover:bg-blue-700 transition disabled:opacity-50"
-              disabled={loading || !input.trim()}
+              disabled={loading || !input.trim() || showBookingForm}
             >
               {loading ? '...' : 'Send'}
             </button>
