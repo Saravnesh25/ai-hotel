@@ -2,7 +2,7 @@ export default function Header() {
   return (
     <header className="w-full bg-white shadow-md py-4 px-8 flex items-center justify-between">
       <div className="flex items-center gap-2">
-        <img src="/favicon.ico" alt="Hotel Logo" className="w-8 h-8 rounded" />
+        <img src="/hotel-logo.jpg" alt="Hotel Logo" className="w-8 h-8 rounded" />
         <span className="text-xl font-bold text-blue-700">Azure Hotel</span>
       </div>
       <nav className="space-x-6 text-blue-700 font-medium">
