@@ -32,8 +32,8 @@ async def get_database() -> AsyncIOMotorDatabase:
     return db.database
 
 # Get the azure_openai_ids collection
-def get_azure_ids_collection() -> AsyncIOMotorCollection:
-    db = get_database()
+async def get_azure_ids_collection() -> AsyncIOMotorCollection:
+    db = await get_database()
     return db[MongoDBConsts.COLLECTION_AZURE_IDS]
 
 async def get_gridfs():

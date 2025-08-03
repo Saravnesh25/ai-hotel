@@ -5,6 +5,7 @@ node_modules
 # venv files
 backend/venv/
 venv/
+__pycache__/
 
 # .gitignore template from https://github.com/github/gitignore/blob/main/Nextjs.gitignore
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.

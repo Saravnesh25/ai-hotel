@@ -30,7 +30,7 @@ def create_completions(messages):
 def determine_intent(user_input: str):
     """
     Determine the intent of a message using the Azure OpenAI client.
-    returns "Booking", "Query", or "Unknown"
+    returns "Booking" or "Query" if intent is clear, the AI's reply if the intent is unclear, or "Unknown" if error, 
     """
     
     possible_intents = ["Booking", "Query"]
@@ -63,8 +63,6 @@ def determine_intent(user_input: str):
         print(f"An error occurred while determining intent: {e}")
         return "Unknown"
     
-# Declare once here to use in VectorStoreUtil and QueryAssistantUtil
-azureIdsCollection = get_azure_ids_collection()
 
 class VectorStoreUtil:
     """
@@ -77,6 +75,7 @@ class VectorStoreUtil:
         Get the VectorStore object for hotel knowledge base or create it if it doesn't exist.
         """
         # Try to retrieve the vector store ID from the database
+        azureIdsCollection = await get_azure_ids_collection()
         result = await azureIdsCollection.find_one({"id_for": "vector_store"})
         if result and "id" in result:
             # If the vector store ID exists, retrieve the vector store
@@ -102,6 +101,7 @@ class VectorStoreUtil:
         Upload a file to Azure OpenAI and saves its id into the database.
         Returns the modified count of the database operation.
         """
+        azureIdsCollection = await get_azure_ids_collection()
         with open(file_path, "rb") as file:
             # Upload file to Azure
             uploaded_file = client.files.create(
@@ -129,6 +129,7 @@ class VectorStoreUtil:
         Delete a file from the vector store.
         Returns the modified count of the database operation.
         """
+        azureIdsCollection = await get_azure_ids_collection()
         # Delete the file from Azure OpenAI
         deleted = client.files.delete(file_id)
         
@@ -151,6 +152,7 @@ class QueryAssistantUtil:
         """
         Get the Assistant object or create a new one if it doesn't exist.
         """
+        azureIdsCollection = await get_azure_ids_collection()
         #  Try to retrieve the assistant ID from the database
         result = await azureIdsCollection.find_one({"id_for": "azure_assistant"})
         if result and "id" in result:
@@ -201,9 +203,9 @@ class QueryAssistantUtil:
         """
         return client.beta.threads.retrieve(thread_id=thread_id)
     
-    async def answer_query(query: str, thread: Thread):
+    async def get_query_answer(query: str, thread: Thread):
         """
-        Find the answer that the user is querying.
+        Use the assistant to find answers within uploaded documents.
         """
         assistant = await QueryAssistantUtil.get_or_create_assistant()
         run = client.beta.threads.runs.create(

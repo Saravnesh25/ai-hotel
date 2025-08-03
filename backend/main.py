@@ -26,13 +26,14 @@ def chat(user_message: str, thread_id: str = None):
         else:
             thread = QueryAssistantUtil.get_thread(thread_id)
     
-        query_reply = QueryAssistantUtil.answer_query(user_message, thread)
+        query_reply = QueryAssistantUtil.get_query_answer(user_message, thread)
 
         if query_reply is not None:
             # TODO: implement staff takeover
             if "notifying a staff" in query_reply.lower():
                 print("Notify staff here")
                 
+            # TODO: receive thread id on frontend
             return {
                 "reply": query_reply,
                 "thread_id": thread_id
