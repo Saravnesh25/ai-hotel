@@ -20,3 +20,4 @@ class MongoDBConsts:
     MONGODB_DATABASE_NAME = os.getenv("MONGODB_DATABASE_NAME")
 
     COLLECTION_AZURE_IDS = "azure_openai_ids"
+    COLLECTION_ESCALATED_QUERIES = "escalated_queries"
