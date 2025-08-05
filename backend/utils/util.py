@@ -1,3 +1,5 @@
+import io
+from fastapi import UploadFile
 from openai import AzureOpenAI
 from openai.resources.beta.assistants import Assistant
 from openai.resources.beta.threads.threads import Thread
@@ -37,7 +39,8 @@ def determine_intent(user_input: str):
     system_message = base_system_message + (
         f"Your task is to accurately determine the user's primary intent from their message. "
         f"Choose ONE of the following intents: {', '.join(possible_intents)}. "
-        f"If the intent is not clear or does not fit any of the categories, tell the user that you cannot understand their request and ask them if they wanted to book or ask a question. "
+        f"If the intent is not clear or does not fit any of the categories, reply to their message appropriately but ask them if they wanted to book or ask a question."
+        f"For example, if the user says hi, you might say: 'Hi! How can I assist you today? Are you looking to book a room or do you have a question?' "
         f"Otherwise, respond ONLY with the intent word, no extra text or punctuation."
     )
     
@@ -96,33 +99,41 @@ class VectorStoreUtil:
             )
             return vector_store
 
-    async def upload_file_to_azure(file_path: str):
+    async def upload_file_to_azure(file: UploadFile, document_name: str) -> int:
         """
         Upload a file to Azure OpenAI and saves its id into the database.
         Returns the modified count of the database operation.
         """
         azureIdsCollection = await get_azure_ids_collection()
-        with open(file_path, "rb") as file:
-            # Upload file to Azure
-            uploaded_file = client.files.create(
-                file=file,
-                purpose="assistants"
-            )
-           
-            # Link file to the vector store
-            vector_store: VectorStore = await VectorStoreUtil.get_or_create_vector_store()
-            client.vector_stores.files.create(
-                vector_store_id=vector_store.id,
-                file_id=uploaded_file.id
-            )
-           
-            # Save the newly uploaded file's id in the database
-            result = await azureIdsCollection.update_one(
-                {"id_for": "vector_store"},
-                {"$addToSet": {"file_ids": uploaded_file.id}}
-            )
-            
-            return result.modified_count
+        file_bytes = await file.read()
+        file_like = io.BytesIO(file_bytes)
+        file_like.name = file.filename  # Set the filename for the UploadFile
+        
+        # Upload file to Azure
+        uploaded_file = client.files.create(
+            file=file_like,
+            purpose="assistants"
+        )
+        
+        # Link file to the vector store
+        vector_store: VectorStore = await VectorStoreUtil.get_or_create_vector_store()
+        client.vector_stores.files.create(
+            vector_store_id=vector_store.id,
+            file_id=uploaded_file.id
+        )
+        
+        file_doc = {
+            "id": uploaded_file.id,
+            "document_name": document_name,
+        }
+        
+        # Save the newly uploaded file's id in the database
+        result = await azureIdsCollection.update_one(
+            {"id_for": "vector_store"},
+            {"$addToSet": {"file_ids": file_doc}}
+        )
+        
+        return result.modified_count
         
     async def delete_file_from_azure(file_id: str):
         """
@@ -137,7 +148,7 @@ class VectorStoreUtil:
             # Remove the file ID from the vector store's file_ids list in the database
             result = await azureIdsCollection.update_one(
                 {"id_for": "vector_store"},
-                {"$pull": {"file_ids": file_id}}
+                {"$pull": {"file_ids": {"id": file_id}}}
             )
             return result.modified_count
         return 0
@@ -203,7 +214,7 @@ class QueryAssistantUtil:
         """
         return client.beta.threads.retrieve(thread_id=thread_id)
     
-    async def get_query_answer(query: str, thread: Thread):
+    async def get_query_answer(query: str, thread: Thread) -> str | None:
         """
         Use the assistant to find answers within uploaded documents.
         """
