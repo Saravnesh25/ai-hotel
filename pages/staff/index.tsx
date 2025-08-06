@@ -3,9 +3,12 @@ import Header from '../../components/Header';
 import Footer from "../../components/Footer";
 import { apiFetch } from "../../utils/api";
 
-export default function Staff() {
-    const [files, setFiles] = useState([]);
-    const [escalations, setEscalations] = useState([]);
+type FileItem = { id: string; title: string };
+type Escalation = { thread_id: string; escalation_query: string };
+
+const StaffDashboard = () => {
+    const [files, setFiles] = useState<FileItem[]>([]);
+    const [escalations, setEscalations] = useState<Escalation[]>([]);
     const [documentName, setDocumentName] = useState<string>("");
     const [fileUpload, setFileUpload] = useState<File | null>(null);
     const [loading, setLoading] = useState(false);
@@ -43,11 +46,6 @@ export default function Staff() {
             const res = await apiFetch("/query/escalations");
             const data = await res.json();
             setEscalations(data || []);
-
-            // setEscalations([
-            //     { thread_id: "123", user_message: "Need help with booking" },
-            //     { thread_id: "456", user_message: "Issue with payment" },
-            // ]);
         }, 5000);
         return () => clearInterval(interval);
     }, []);
@@ -133,7 +131,10 @@ export default function Staff() {
                         <input
                             type="file"
                             accept=".pdf,.docx,.txt"
-                            onChange={(e) => setFileUpload(e.target.files[0])}
+                            onChange={(e) => {
+                                const files = e.target.files;
+                                setFileUpload(files && files.length > 0 ? files[0] : null);
+                            }}
                             className="border px-2 py-1 rounded"
                             required
                         />
@@ -211,4 +212,6 @@ export default function Staff() {
             <Footer />
         </main>
     );
-}
+};
+
+export default StaffDashboard;

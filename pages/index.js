@@ -1,11 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import HeroSection from '../components/HeroSection';
 import RoomsSection from '../components/RoomsSection';
-const initialRooms = [
-  { id: 1, name: 'Deluxe Room', type: 'King bed, city view', price: 120, available: 3, img: '/room1.jpg' },
-  { id: 2, name: 'Suite', type: 'Luxury suite, living area', price: 220, available: 2, img: '/room2.jpg' },
-  { id: 3, name: 'Family Room', type: 'Two queen beds, garden view', price: 180, available: 1, img: '/room3.jpg' },
-];
 import RoomBookingSection from '../components/RoomBookingSection';
 import AmenitiesSection from '../components/AmenitiesSection';
 import ContactSection from '../components/ContactSection';
@@ -15,7 +10,13 @@ import Footer from '../components/Footer';
 
 export default function Home() {
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [rooms, setRooms] = useState(initialRooms);
+  const [rooms, setRooms] = useState([]);
+  useEffect(() => {
+    // Fetch rooms from backend API
+    fetch('http://localhost:8000/rooms')
+      .then(res => res.json())
+      .then(data => setRooms(data));
+  }, []);
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
@@ -38,16 +39,30 @@ export default function Home() {
     setForm((f) => ({ ...f, [name]: type === 'checkbox' ? checked : value }));
   };
 
-  const handleSubmit = (e) => {
+  // Helper to fetch latest rooms from backend
+  async function fetchRooms() {
+    const res = await fetch('http://localhost:8000/rooms');
+    return await res.json();
+  }
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setRooms((rs) =>
-      rs.map((r) =>
-        r.id === selectedRoom.id ? { ...r, available: r.available - 1 } : r
-      )
-    );
-    setShowForm(false);
-    setBookingSuccess(true);
-    setForm({ name: '', email: '', breakfast: false, preference: '', additional: '' });
+    if (!selectedRoom) return;
+    try {
+      const res = await fetch('http://localhost:8000/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, roomId: selectedRoom.id }),
+      });
+      if (!res.ok) throw new Error('Booking failed');
+      const updatedRooms = await fetchRooms();
+      setRooms(updatedRooms);
+      setShowForm(false);
+      setBookingSuccess(true);
+      setForm({ name: '', email: '', breakfast: false, preference: '', additional: '' });
+    } catch {
+      alert('Booking failed. Please try again.');
+    }
   };
 
   return (
@@ -69,11 +84,12 @@ export default function Home() {
         bookingSuccess={bookingSuccess}
         setShowForm={setShowForm}
         setBookingSuccess={setBookingSuccess}
+        rooms={rooms}
       />
       <AmenitiesSection />
       <ContactSection />
       <Footer />
-      <ChatBot isOpen={isChatOpen} onToggle={() => setIsChatOpen(!isChatOpen)} />
+      <ChatBot isOpen={isChatOpen} onToggle={() => setIsChatOpen(!isChatOpen)} rooms={rooms} setRooms={setRooms} />
     </main>
   );
 }

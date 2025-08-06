@@ -31,10 +31,16 @@ async def close_mongo_connection():
 async def get_database() -> AsyncIOMotorDatabase:
     return db.database
 
+
 # Get the azure_openai_ids collection
 async def get_azure_ids_collection() -> AsyncIOMotorCollection:
-    db = await get_database()
-    return db[MongoDBConsts.COLLECTION_AZURE_IDS]
+    db_ = await get_database()
+    return db_[MongoDBConsts.COLLECTION_AZURE_IDS]
+
+# Get the rooms collection
+async def get_rooms_collection() -> AsyncIOMotorCollection:
+    db_ = await get_database()
+    return db_["rooms"]
 
 async def get_escalated_queries_collection() -> AsyncIOMotorCollection:
     db = await get_database()

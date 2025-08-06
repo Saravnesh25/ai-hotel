@@ -1,5 +1,5 @@
 
-export default function RoomBookingSection({ showForm, selectedRoom, form, onChange, onSubmit, bookingSuccess, setShowForm, setBookingSuccess }) {
+export default function RoomBookingSection({ showForm, selectedRoom, form, onChange, onSubmit, bookingSuccess, setShowForm, setBookingSuccess, rooms }) {
   return (
     <section id="booking">
       {showForm && selectedRoom && (

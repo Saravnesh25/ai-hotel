@@ -2,13 +2,14 @@ import { useState, useRef, useEffect } from 'react';
 import ChatBotBookingForm from './ChatBotBookingForm';
 import { apiFetch } from '../utils/api'; // Adjust path as needed
 
-const demoRooms = [
-  { id: 1, name: 'Deluxe Room', price: 120, available: 3 },
-  { id: 2, name: 'Suite', price: 220, available: 2 },
-  { id: 3, name: 'Family Room', price: 180, available: 1 },
-];
+// Helper to fetch latest rooms from backend
+async function fetchRooms() {
+  const res = await fetch('http://localhost:8000/rooms');
+  return await res.json();
+}
 
-export default function ChatBot({ isOpen, onToggle, rooms = demoRooms }) {
+
+export default function ChatBot({ isOpen, onToggle, rooms = [], setRooms }) {
   const [messages, setMessages] = useState([
     { role: 'assistant', content: 'Hello! Welcome to Azure Grand Hotel. How can I help you?' },
   ]);
@@ -16,8 +17,6 @@ export default function ChatBot({ isOpen, onToggle, rooms = demoRooms }) {
   const [loading, setLoading] = useState(false);
   const [showBookingForm, setShowBookingForm] = useState(false);
   const chatEndRef = useRef(null);
-  
-  // Query variables
   const [threadId, setThreadId] = useState(null);
   // Escalated query variables
   const [escalationActive, setEscalationActive] = useState(false);
@@ -109,17 +108,36 @@ export default function ChatBot({ isOpen, onToggle, rooms = demoRooms }) {
     setLoading(false);
   };
 
-  const handleBookingSubmit = (form) => {
+  const handleBookingSubmit = async (form) => {
     setShowBookingForm(false);
-    setMessages((msgs) => [
-      ...msgs,
-      { role: 'assistant', content: (
-        <span>
-          Booking confirmed for <b>{form.name}</b> in <b>{rooms.find(r => r.id == form.roomId)?.name}</b>.<br />
-          We look forward to your stay!
-        </span>
-      ) }
-    ]);
+    setLoading(true);
+    try {
+      // Send booking to backend
+      const res = await fetch('http://localhost:8000/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      if (!res.ok) throw new Error('Booking failed');
+      // Refresh rooms from backend
+      const updatedRooms = await fetchRooms();
+      if (setRooms) setRooms(updatedRooms);
+      setMessages((msgs) => [
+        ...msgs,
+        { role: 'assistant', content: (
+          <span>
+            Booking confirmed for <b>{form.name}</b> in <b>{rooms.find(r => r.id == form.roomId)?.name}</b>.<br />
+            We look forward to your stay!
+          </span>
+        ) }
+      ]);
+    } catch (err) {
+      setMessages((msgs) => [
+        ...msgs,
+        { role: 'assistant', content: 'Sorry, booking failed. Please try again.' }
+      ]);
+    }
+    setLoading(false);
   };
 
   return (
