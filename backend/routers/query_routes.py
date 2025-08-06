@@ -1,6 +1,7 @@
 from typing import List
 from fastapi import APIRouter, File, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.params import Form
+from pydantic import BaseModel
 
 from models.escalations import Escalations
 from models.azure_ids import VectorStoreAzureIDs
@@ -10,8 +11,6 @@ from utils.database import get_azure_ids_collection, get_escalated_queries_colle
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 router = APIRouter(prefix="/query", tags=["query"])
-
-AZURE_IDS_COLLECTION = MongoDBConsts.COLLECTION_AZURE_IDS
 
 active_connections = {}  # {thread_id: {"user": websocket, "staff": websocket}}
 
@@ -32,12 +31,12 @@ async def websocket_chat(websocket: WebSocket, thread_id: str, role: str):
             
             # Forward message to the other party
             respond_to = "staff" if role == "user" else "user"
+            print("Received message:", data, "from role:", role, ", sending to :", respond_to)
             if respond_to in active_connections[thread_id]:
                 await active_connections[thread_id][respond_to].send_text(data)
 
-            # TODO: implement message handling logic in here and in frontend
     except WebSocketDisconnect:
-        print(f"WebSocket disconnected for thread {thread_id}")
+        print(f"WebSocket disconnected for thread {thread_id} and role {role}")
         pass
     finally:
         # Remove connection on disconnect
@@ -68,6 +67,22 @@ async def respond_to_escalation(thread_id: str):
     result = await db.update_one(
         {"thread_id": thread_id},
         {"$set": {"status": "in_progress"}}
+    )
+    
+    return {"modified_count": result.modified_count}
+
+class ThreadIdRequest(BaseModel):
+    thread_id: str
+    
+@router.post("/escalations/resolve")
+async def resolve_escalation(request: ThreadIdRequest):
+    """
+    Mark an escalation as resolved.
+    """
+    db = await get_escalated_queries_collection()
+    result = await db.update_one(
+        {"thread_id": request.thread_id},
+        {"$set": {"status": "resolved"}}
     )
     
     return {"modified_count": result.modified_count}

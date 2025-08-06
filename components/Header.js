@@ -12,7 +12,7 @@ export default function Header() {
         <a href="/#amenities" className="hover:text-blue-500">Amenities</a>
         <a href="/#contact" className="hover:text-blue-500">Contact</a>
         <span className="mx-2 text-gray-300">|</span>
-        <a href="/staff" className="hover:text-blue-500">Staff</a>
+        <a href="/staff" className="text-gray-500 hover:text-gray-300">Staff</a>
       </nav>
     </header>
   );

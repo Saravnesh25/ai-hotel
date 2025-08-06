@@ -48,17 +48,12 @@ export default function ChatBot({ isOpen, onToggle, rooms = demoRooms }) {
     setInput('');
     setLoading(true);
 
-    /*
-      when escalating,
-        disable inputs until staff responds
-        ensure user can send message without waiting for reply
-    */
-    setAwaitingStaff(true);
     // If escalation is active, send to the webhook instead
     if (escalationActive && wsRef.current) {
       wsRef.current.send(
         JSON.stringify({ role: 'user', content: input })
       );
+      setLoading(false);
       return;
     }
 
@@ -87,19 +82,25 @@ export default function ChatBot({ isOpen, onToggle, rooms = demoRooms }) {
       // Escalation detection
       if (data.reply.toLowerCase().includes('notifying a staff')) {
         setAwaitingStaff(true);
+
+        // Connect to the websocket
         wsRef.current = new WebSocket(`ws://localhost:8000/query/ws/chat/${data.thread_id}/user`);
+        
         wsRef.current.onmessage = (event) => {
           const msg = JSON.parse(event.data);
           setMessages((msgs) => [...msgs, { role: 'assistant', content: msg.content }]);
+          // If the staff marks as resolved, close the websocket
           if(msg.status === 'resolved') {
             wsRef.current.close();
+            console.log("Closing WebSocket.");
             setEscalationActive(false);
           }
         }
         wsRef.current.onopen = () => {
-          console.log("WebSocket connected for user");
+          console.log("WebSocket connected.");
           setEscalationActive(true);
           setAwaitingStaff(false);
+          setLoading(false);
         }
       } 
     } catch {
@@ -158,7 +159,7 @@ export default function ChatBot({ isOpen, onToggle, rooms = demoRooms }) {
             <input
               className="flex-1 px-3 py-2 rounded-2xl border border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
               type="text"
-              placeholder="Ask me anything..."
+              placeholder={escalationActive ? "Ask a staff" : "Ask me anything..."}
               value={input}
               onChange={e => setInput(e.target.value)}
               disabled={loading || showBookingForm}

@@ -52,7 +52,6 @@ async def chat(request: ChatRequest):
         query_reply = await QueryAssistantUtil.get_query_answer(latest_user_message, thread)
 
         if query_reply is not None:
-            # TODO: implement staff takeover
             response = {
                 "reply": query_reply,
                 "thread_id": thread.id
@@ -68,12 +67,10 @@ async def chat(request: ChatRequest):
                 
             return response
         else:
-            # TODO: handle failure to get a response
             return {"message": "Failed to get a response from the assistant."}
        
     elif(intent_reply.lower() == "unknown"): # An exception is caught in determine_intent
-        # TODO: handle unknown intents
-        return {"message": "Unknown intent detected."}
+        return {"message": "An unexpected error occurred."}
     else: # Return the reply from the AI
         return {
             "reply": intent_reply,

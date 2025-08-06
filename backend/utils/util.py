@@ -168,28 +168,32 @@ class QueryAssistantUtil:
         Get the Assistant object or create a new one if it doesn't exist.
         """
         azureIdsCollection = await get_azure_ids_collection()
-        
         #  Try to retrieve the assistant ID from the database
         result = await azureIdsCollection.find_one({"id_for": "azure_assistant"})
+        instructions = base_system_message + """
+            Use your knowledge base to answer queries about the hotel. Do not mention the knowledge base or documents. 
+            If you cannot answer based on the knowledge base and the query seems critical (e.g. booking/payment issues, threats to customer satisfaction, urgent complaints), please escalate the query to a human staff and include the exact words "notifying a staff" as part of your response, and let the user know that a staff member will assist them shortly.
+        """
         if result and "id" in result:
             # If the assistant ID exists, retrieve the assistant
             print("Retrieving existing assistant...")
             assistant_id = result["id"]
+            # print("Updating assistant instructions...")
+            # client.beta.assistants.update(
+            #     assistant_id=assistant_id,
+            #     instructions=instructions
+            # )
             return client.beta.assistants.retrieve(assistant_id=assistant_id)
         else:
             # Otherwise, create a new assistant
             
             # Get the vector store to pass to the assistant
             vector_store = await VectorStoreUtil.get_or_create_vector_store()
-            
-            system_message = base_system_message + """
-                Use your knowledge base to answer queries about the hotel.
-                If you cannot answer based on the knowledge base and the query seems critical (e.g. booking/payment issues, threats to customer satisfaction, urgent complaints), please escalate the query to a human staff and include the exact words: "notifying a staff" as part of your response, and let the user know that a staff member will assist them shortly.
-            """
+     
             print("Creating new assistant...")
             assistant = client.beta.assistants.create(
                 name="File Search Assistant",
-                instructions=system_message,
+                instructions=instructions,
                 model=AzureConsts.AZURE_OPENAI_MODEL_NAME,
                 tools=[{"type": "file_search"}],  # Enable file search
                 tool_resources={
@@ -224,7 +228,7 @@ class QueryAssistantUtil:
         """
         Use the assistant to find answers within uploaded documents.
         """
-        assistant = await QueryAssistantUtil.get_or_create_assistant()
+        assistant: Assistant = await QueryAssistantUtil.get_or_create_assistant()
         
         # Add the query to the thread
         message = client.beta.threads.messages.create(
