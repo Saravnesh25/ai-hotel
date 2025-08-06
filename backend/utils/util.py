@@ -1,4 +1,5 @@
 import io
+import re
 from fastapi import UploadFile
 from openai import AzureOpenAI
 from openai.resources.beta.assistants import Assistant
@@ -105,6 +106,8 @@ class VectorStoreUtil:
         Returns the modified count of the database operation.
         """
         azureIdsCollection = await get_azure_ids_collection()
+        
+        # Prepare the file in the format required by Azure OpenAI
         file_bytes = await file.read()
         file_like = io.BytesIO(file_bytes)
         file_like.name = file.filename  # Set the filename for the UploadFile
@@ -141,6 +144,7 @@ class VectorStoreUtil:
         Returns the modified count of the database operation.
         """
         azureIdsCollection = await get_azure_ids_collection()
+        
         # Delete the file from Azure OpenAI
         deleted = client.files.delete(file_id)
         
@@ -164,6 +168,7 @@ class QueryAssistantUtil:
         Get the Assistant object or create a new one if it doesn't exist.
         """
         azureIdsCollection = await get_azure_ids_collection()
+        
         #  Try to retrieve the assistant ID from the database
         result = await azureIdsCollection.find_one({"id_for": "azure_assistant"})
         if result and "id" in result:
@@ -172,13 +177,14 @@ class QueryAssistantUtil:
             assistant_id = result["id"]
             return client.beta.assistants.retrieve(assistant_id=assistant_id)
         else:
+            # Otherwise, create a new assistant
+            
             # Get the vector store to pass to the assistant
             vector_store = await VectorStoreUtil.get_or_create_vector_store()
             
-            # Create a new assistant if it doesn't exist
             system_message = base_system_message + """
                 Use your knowledge base to answer queries about the hotel.
-                If you cannot answer based on the knowledge base, please escalate the query to a human staff and include these exact words: "notifying a staff" as part of your response, and let the user know that a staff member will assist them shortly.
+                If you cannot answer based on the knowledge base and the query seems critical (e.g. booking/payment issues, threats to customer satisfaction, urgent complaints), please escalate the query to a human staff and include the exact words: "notifying a staff" as part of your response, and let the user know that a staff member will assist them shortly.
             """
             print("Creating new assistant...")
             assistant = client.beta.assistants.create(
@@ -219,6 +225,15 @@ class QueryAssistantUtil:
         Use the assistant to find answers within uploaded documents.
         """
         assistant = await QueryAssistantUtil.get_or_create_assistant()
+        
+        # Add the query to the thread
+        message = client.beta.threads.messages.create(
+            thread_id=thread.id,
+            role="user",
+            content=query,
+        )
+        
+        # Run the assistant to get a reply
         run = client.beta.threads.runs.create(
             thread_id=thread.id,
             assistant_id=assistant.id,
@@ -234,11 +249,14 @@ class QueryAssistantUtil:
                 return None
             time.sleep(1)
             
+        # Get the assistant's reply from the thread messages
         messages = client.beta.threads.messages.list(thread_id=thread.id)
         for message in messages.data:
             if message.role == "assistant":
-                return message.content[0].text.value
-            
+                # The reply might contain citations, so we need to clean it up
+                # Remove citations like 【4:0†Azure Hotel FAQ】
+                return re.sub(r"【\d+:\d+†[^\】]+】", "", message.content[0].text.value).strip()
+
         return None
 
      

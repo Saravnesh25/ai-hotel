@@ -1,14 +1,13 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from openai.resources.beta.threads.threads import Thread
 from config import settings
 
 from routers import query_routes
 from utils.util import QueryAssistantUtil, determine_intent
-from utils.database import close_mongo_connection, connect_to_mongo
+from utils.database import close_mongo_connection, connect_to_mongo, get_escalated_queries_collection
 from models.chat import ChatRequest
-
-base_url = 'http://localhost:8000/api'
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -45,25 +44,29 @@ async def chat(request: ChatRequest):
         # TODO: implement booking functionality
         return "Booking functionality here"
     elif(intent_reply.lower() == "query"):
-        # TODO: implement thread creation and retrieval in frontend
         if request.thread_id is None:
-            thread = QueryAssistantUtil.create_thread()
-            thread_id = thread.id
+            thread: Thread = QueryAssistantUtil.create_thread()
         else:
-            thread = QueryAssistantUtil.get_thread(thread_id)
-    
+            thread: Thread = QueryAssistantUtil.get_thread(request.thread_id)
+
         query_reply = await QueryAssistantUtil.get_query_answer(latest_user_message, thread)
 
         if query_reply is not None:
             # TODO: implement staff takeover
-            if "notifying a staff" in query_reply.lower():
-                print("Notify staff here")
-                
-            # TODO: receive thread id on frontend
-            return {
+            response = {
                 "reply": query_reply,
-                "thread_id": thread_id
+                "thread_id": thread.id
             }
+            
+            if "notifying a staff" in query_reply.lower():
+                db = await get_escalated_queries_collection()
+                result = await db.insert_one({
+                    "escalation_query": latest_user_message,
+                    "thread_id": thread.id,
+                    "status": "pending"
+                })
+                
+            return response
         else:
             # TODO: handle failure to get a response
             return {"message": "Failed to get a response from the assistant."}

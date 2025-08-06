@@ -26,12 +26,23 @@ export default function Staff() {
         fetchFiles();
     }, []);
 
-    // Poll for escalations (demo: every 5s)
+
+    // Fetch escalations
+    useEffect(() => {
+        async function fetchEscalations() {
+            const res = await apiFetch("/query/escalations");
+            const data = await res.json();
+            setEscalations(data || []);
+        }
+        fetchEscalations();
+    }, []);
+
+    // Poll for escalations every 5s
     useEffect(() => {
         const interval = setInterval(async () => {
             const res = await apiFetch("/query/escalations");
             const data = await res.json();
-            setEscalations(data.escalations || []);
+            setEscalations(data || []);
 
             // setEscalations([
             //     { thread_id: "123", user_message: "Need help with booking" },
@@ -78,6 +89,27 @@ export default function Staff() {
 
         if (result.ok) {
             setFiles(files.filter((f) => f.id !== fileId));
+        }
+        setLoading(false);
+    };
+
+    const handleRespond = async (threadId, escalationQuery) => {
+        // Set escalation status to "in progress" and redirect to chat
+        setLoading(true);
+        const res = await apiFetch(`/query/escalations/${threadId}`, {
+            method: "POST",
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            if (data.modified_count > 0) {
+                // Redirect to chat page with threadId
+                window.location.href = `/staff/respond/${threadId}?escalation_query=${encodeURIComponent(escalationQuery)}`;
+            } else {
+                console.error("Escalation taken by another staff member.");
+            }
+        } else {
+            console.error("Failed to respond to escalation");
         }
         setLoading(false);
     };
@@ -155,11 +187,12 @@ export default function Staff() {
                         <tbody className="divide-y divide-gray-200">
                             {escalations.map((esc) => (
                                 <tr key={esc.thread_id} className="hover:bg-gray-50">
-                                    <td className="px-4 py-2">{esc.user_message}</td>
+                                    <td className="px-4 py-2">{esc.escalation_query}</td>
                                     <td className="px-4 py-2 text-center">
                                         <button
                                             className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 transition"
-                                            onClick={() => window.location.href = `/staff/respond/${esc.thread_id}`}
+                                            onClick={() => handleRespond(esc.thread_id, esc.escalation_query)}
+                                            disabled={loading}
                                         >
                                             Respond
                                         </button>

@@ -1,6 +1,8 @@
-from fastapi import APIRouter, File, UploadFile, WebSocket
+from typing import List
+from fastapi import APIRouter, File, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.params import Form
 
+from models.escalations import Escalations
 from models.azure_ids import VectorStoreAzureIDs
 from utils.util import VectorStoreUtil
 from utils.consts import MongoDBConsts
@@ -11,26 +13,64 @@ router = APIRouter(prefix="/query", tags=["query"])
 
 AZURE_IDS_COLLECTION = MongoDBConsts.COLLECTION_AZURE_IDS
 
-@router.websocket("/ws/chat/{thread_id}")
-async def websocket_chat(websocket: WebSocket, thread_id: str):
+active_connections = {}  # {thread_id: {"user": websocket, "staff": websocket}}
+
+@router.websocket("/ws/chat/{thread_id}/{role}")
+async def websocket_chat(websocket: WebSocket, thread_id: str, role: str):
     """
     WebSocket endpoint for chat functionality.
     Accepts messages from the user and broadcasts them to .
     """
     await websocket.accept()
-    while True:
-        data = await websocket.receive_text()
+    if thread_id not in active_connections:
+        active_connections[thread_id] = {}
+    active_connections[thread_id][role] = websocket
+        
+    try:
+        while True:
+            data = await websocket.receive_text()
+            
+            # Forward message to the other party
+            respond_to = "staff" if role == "user" else "user"
+            if respond_to in active_connections[thread_id]:
+                await active_connections[thread_id][respond_to].send_text(data)
 
-        # TODO: implement message handling logic in here and in frontend
+            # TODO: implement message handling logic in here and in frontend
+    except WebSocketDisconnect:
+        print(f"WebSocket disconnected for thread {thread_id}")
+        pass
+    finally:
+        # Remove connection on disconnect
+        active_connections[thread_id].pop(role, None)
+        if not active_connections[thread_id]:
+            active_connections.pop(thread_id, None)
 
 # Get escalated queries
-@router.get("/escalations")
+@router.get("/escalations", response_model=List[Escalations])
 async def get_escalations():
     """
-    Get a list of escalated queries.
+    Get a list of escalated pending queries.
     """
     db = await get_escalated_queries_collection()
-    return await db.find().to_list()
+    docs = await db.find({"status": "pending"}).to_list(length=None)
+    
+    # Prepare the docs for object creation
+    for doc in docs:
+        del doc["_id"]
+    return [Escalations(**doc) for doc in docs]
+
+@router.post("/escalations/{thread_id}/")
+async def respond_to_escalation(thread_id: str):
+    """
+    Respond to an escalation by assigning a staff member.
+    """
+    db = await get_escalated_queries_collection()
+    result = await db.update_one(
+        {"thread_id": thread_id},
+        {"$set": {"status": "in_progress"}}
+    )
+    
+    return {"modified_count": result.modified_count}
 
 # Get documents stored in vector store
 @router.get("/vector_store_files", response_model=VectorStoreAzureIDs)
@@ -44,9 +84,8 @@ async def get_vector_store_files():
         # Return an empty/default model or raise HTTPException
         return VectorStoreAzureIDs(id_for="vector_store", id="", file_ids=[])
     
-    print("Retrieved vector store document:", doc)
-    
-    del doc["_id"]  # Remove MongoDB's ObjectId field
+    # Prepare the doc for object creation
+    del doc["_id"] 
     return VectorStoreAzureIDs(**doc)
 
 # Upload document to vector store
@@ -58,8 +97,6 @@ async def upload_vector_store_document(
     """
     Upload a document to the vector store.
     """
-    # TODO: Process the file and upload it to Azure OpenAI
-    # return "File upload functionality is not implemented yet."
     result = await VectorStoreUtil.upload_file_to_azure(file, document_name)
     if result:
         return {"message": "File uploaded successfully", "modified_count": result}
@@ -67,7 +104,7 @@ async def upload_vector_store_document(
         return {"message": "File upload failed", "modified_count": 0}
 
 # Delete document from vector store
-@router.delete("/delete_vector_store_document/{file_id}", response_model=dict)
+@router.delete("/delete_vector_store_document/{file_id}")
 async def delete_vector_store_document(file_id: str):
     """
     Delete a document from the vector store.

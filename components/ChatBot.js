@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import ChatBotBookingForm from './ChatBotBookingForm';
+import { apiFetch } from '../utils/api'; // Adjust path as needed
 
 const demoRooms = [
   { id: 1, name: 'Deluxe Room', price: 120, available: 3 },
@@ -15,6 +16,13 @@ export default function ChatBot({ isOpen, onToggle, rooms = demoRooms }) {
   const [loading, setLoading] = useState(false);
   const [showBookingForm, setShowBookingForm] = useState(false);
   const chatEndRef = useRef(null);
+  
+  // Query variables
+  const [threadId, setThreadId] = useState(null);
+  // Escalated query variables
+  const [escalationActive, setEscalationActive] = useState(false);
+  const [awaitingStaff, setAwaitingStaff] = useState(false);
+  const wsRef = useRef(null);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -39,14 +47,61 @@ export default function ChatBot({ isOpen, onToggle, rooms = demoRooms }) {
     }
     setInput('');
     setLoading(true);
+
+    /*
+      when escalating,
+        disable inputs until staff responds
+        ensure user can send message without waiting for reply
+    */
+    setAwaitingStaff(true);
+    // If escalation is active, send to the webhook instead
+    if (escalationActive && wsRef.current) {
+      wsRef.current.send(
+        JSON.stringify({ role: 'user', content: input })
+      );
+      return;
+    }
+
     try {
-      const res = await fetch('/api/chat', {
+      // const res = await fetch('/api/chat', {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({ messages: [...messages, userMsg] }),
+      // });
+      const res = await apiFetch('/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [...messages, userMsg] }),
+        body: JSON.stringify({ 
+          messages: [...messages, userMsg],
+          thread_id: threadId || null, // Include thread ID if available
+         }),
       });
       const data = await res.json();
       setMessages((msgs) => [...msgs, { role: 'assistant', content: data.reply }]);
+      // If the response includes a thread ID, set it
+      // This is useful for tracking conversations or escalating issues
+      if (data.thread_id) {
+        setThreadId(data.thread_id);
+      }
+      
+      // Escalation detection
+      if (data.reply.toLowerCase().includes('notifying a staff')) {
+        setAwaitingStaff(true);
+        wsRef.current = new WebSocket(`ws://localhost:8000/query/ws/chat/${data.thread_id}/user`);
+        wsRef.current.onmessage = (event) => {
+          const msg = JSON.parse(event.data);
+          setMessages((msgs) => [...msgs, { role: 'assistant', content: msg.content }]);
+          if(msg.status === 'resolved') {
+            wsRef.current.close();
+            setEscalationActive(false);
+          }
+        }
+        wsRef.current.onopen = () => {
+          console.log("WebSocket connected for user");
+          setEscalationActive(true);
+          setAwaitingStaff(false);
+        }
+      } 
     } catch {
       setMessages((msgs) => [...msgs, { role: 'assistant', content: 'Sorry, something went wrong.' }]);
     }
@@ -112,9 +167,9 @@ export default function ChatBot({ isOpen, onToggle, rooms = demoRooms }) {
             <button
               type="submit"
               className="bg-blue-600 text-white px-4 py-2 rounded-2xl font-semibold hover:bg-blue-700 transition disabled:opacity-50"
-              disabled={loading || !input.trim() || showBookingForm}
+              disabled={awaitingStaff || loading || !input.trim() || showBookingForm}
             >
-              {loading ? '...' : 'Send'}
+              {loading || awaitingStaff ? '...' : 'Send'}
             </button>
           </form>
         </div>
