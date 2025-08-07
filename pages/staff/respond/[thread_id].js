@@ -12,6 +12,10 @@ export default function Respond() {
   const [wsConnected, setWsConnected] = useState(false);
   const [resolved, setResolved] = useState(false);
   const wsRef = useRef(null);
+  
+  // For auto-scrolling to the bottom of the chat
+  const chatContainerRef = useRef(null);
+  const chatEndRef = useRef(null);
 
   // Notify user that staff has joined the chat
   useEffect(() => {
@@ -77,6 +81,11 @@ export default function Respond() {
     }
   }
 
+  // Automatically scroll the chat room to the bottom when new messages arrive
+  useEffect(() => {
+    chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+  }, [messages]);
+
   return (
     <main className="relative min-h-screen overflow-x-hidden" style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #e0e7ff 50%, #c7d2fe 100%)' }}>
       <Header />
@@ -84,13 +93,14 @@ export default function Respond() {
         <h1 className="text-3xl font-bold text-blue-800 mb-6">Escalated Query</h1>
         <div className="bg-white rounded shadow p-6 mb-4">
           <div className="mb-2 font-semibold">Chat Room</div>
-          <div className="border rounded p-2 h-64 overflow-y-auto mb-2 bg-blue-50">
+          <div className="border rounded p-2 h-64 overflow-y-auto mb-2 bg-blue-50" ref={chatContainerRef}>
             {messages.map((msg, i) => (
               <div key={i} className={`mb-2 ${msg.role === "staff" ? "text-blue-700" : "text-gray-800"}`}>
                 <b>{msg.role === "staff" ? "Staff" : "User"}:</b> {msg.content}
                 {msg.status === "resolved" && <span className="ml-2 text-green-600 font-bold">[Resolved]</span>}
               </div>
             ))}
+            <div ref={chatEndRef} />
           </div>
           <form onSubmit={sendMessage} className="flex gap-2 mb-2" disabled={!wsConnected || resolved}>
             <input
